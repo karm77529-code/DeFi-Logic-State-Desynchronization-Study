@@ -18,20 +18,52 @@ This algorithmic discrepancy introduces a temporary or persistent divergence bet
 2. **The Actual Underlying Liquidity Pools & Reserves**
 
 Because the accounting logic relies on these transient boundaries without enforcing immediate global state synchronization between sequential operations, the calculation introduces a structural delta (imbalance) that violates strict economic invariants of the staking ecosystem.
-
 ### Conceptual Educational Example:
-```rust
-// Dummy Educational Example of the Scoping Issue:
-(define-public (update-reserves-faulty (amount uint))
-    (let (
-        ;; Transient calculation within local scope
-        (current-pool-reserve (get-actual-reserves))
-        (calculated-delta (calculate-ratio amount current-pool-reserve))
-    )
-    ;; Faulty tracking: Local delta calculation fails to dynamically 
-    ;; sync back to the global state parameter under rapid consecutive blocks
-    (var-set global-protocol-state (+ (var-get global-protocol-state) calculated-delta))
-    (ok true)
-    )
-)
+
+```javascript
+// Global Protocol State (Simulating the actual on-chain tracking)
+let globalReserves = 1000;
+let globalShares = 1000;
+
+/**
+ * ❌ VULNERABLE FUNCTION
+ * Demonstrates the State Desynchronization flaw where transient local variables
+ * fail to synchronize immediately with global storage under rapid, sequential actions.
+ */
+function depositFaultySimulation(amount) {
+    // Capturing state inside local scope
+    let currentReserves = globalReserves; 
+    let sharePrice = currentReserves / globalShares; // Initial Ratio = 1
+    
+    let mintedShares = amount / sharePrice;
+    
+    // The Desync Flaw: Delayed/Asynchronous state updates
+    // In sequential execution paths, rapid consecutive actions hit the stale local calculation.
+    setTimeout(() => {
+        globalReserves += amount;
+        globalShares += mintedShares;
+        console.log(`❌ Faulty State Updated: Minted ${mintedShares} shares. Global Reserves: ${globalReserves}`);
+    }, 100); 
+}
+
+// —— Attack Vector / Race Condition Simulation ——
+// If an actor triggers two consecutive rapid deposits before the state flushes:
+depositFaultySimulation(500); // Tx 1: Calculates using 1000 reserves
+depositFaultySimulation(500); // Tx 2: Faulty calculation using the SAME stale 1000 reserves (State Discrepancy)
+*
+ * ✅ SECURE FUNCTION
+ * Enforces immediate, atomized global state updates to prevent calculation drift.
+ */
+function depositSecureSimulation(amount) {
+    // Global parameters are calculated and updated synchronously
+    let sharePrice = globalReserves / globalShares;
+    let mintedShares = amount / sharePrice;
+    
+    // Immediate global synchronization
+    globalReserves += amount;
+    globalShares += mintedShares;
+    
+    console.log(`✅ Secure State Updated: Minted ${mintedShares} shares. Global Reserves: ${globalReserves}`);
+}
+
 
